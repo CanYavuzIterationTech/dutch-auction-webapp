@@ -9,19 +9,27 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@chain-registry/keplr": "^1.74.48",
+    "@cosmjs/cosmwasm-stargate": "^0.32.4",
+    "@cosmjs/stargate": "^0.32.4",
+    "@cosmos-kit/keplr": "^2.14.1",
+    "@cosmos-kit/react": "^2.20.1",
+    "chain-registry": "^1.69.48",
+    "cosmjs-types": "^0.9.0",
+    "next": "14.2.18",
     "react": "^18",
     "react-dom": "^18",
-    "next": "14.2.18"
+    "react-query": "^3.39.3"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.18",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.18"
+    "typescript": "^5"
   },
   "packageManager": "pnpm@9.13.2+sha512.88c9c3864450350e65a33587ab801acf946d7c814ed1134da4a924f6df5a2120fd36b46aab68f7cd1d413149112d53c7db3a4136624cfd00ff1846a0c6cef48a"
 }
