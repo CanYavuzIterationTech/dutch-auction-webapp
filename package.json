@@ -14,6 +14,7 @@
     "@cosmjs/stargate": "^0.32.4",
     "@cosmos-kit/keplr": "^2.14.1",
     "@cosmos-kit/react": "^2.20.1",
+    "@vercel/blob": "^0.26.0",
     "chain-registry": "^1.69.48",
     "cosmjs-types": "^0.9.0",
     "next": "14.2.18",
