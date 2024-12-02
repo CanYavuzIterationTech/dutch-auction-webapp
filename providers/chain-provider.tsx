@@ -25,7 +25,7 @@ export function CosmosProvider({ children }: { children: React.ReactNode }) {
       signerOptions={{
         signingStargate: () => {
           return {
-            gasPrice: GasPrice.fromString("0.025ujuno"),
+            gasPrice: GasPrice.fromString("0.0025uom"),
           };
         },
       }}

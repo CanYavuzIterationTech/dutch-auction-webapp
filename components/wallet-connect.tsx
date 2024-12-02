@@ -1,27 +1,9 @@
 "use client";
-import { useChain } from "@cosmos-kit/react";
-import { useState } from "react";
+import { useConnection } from "@/hooks/use-connection";
 
 export function WalletConnect() {
-  const chainName = "mantrachaintestnet2"; // or your preferred chain
-  const {
-    connect,
-    disconnect,
-    address,
-    // wallet,
-    status,
-    // getSigningCosmWasmClient,
-  } = useChain(chainName);
-
-  const [error, setError] = useState<string>("");
-
-  const handleConnect = async () => {
-    try {
-      await connect();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to connect wallet");
-    }
-  };
+  const { address, status, disconnect, handleConnect, customError } =
+    useConnection();
 
   return (
     <div className="flex flex-col gap-4">
@@ -43,7 +25,7 @@ export function WalletConnect() {
           Connect Wallet
         </button>
       )}
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {customError && <p className="text-red-500 text-sm">{customError}</p>}
     </div>
   );
 }

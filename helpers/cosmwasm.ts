@@ -25,3 +25,4 @@ export async function queryContract({ contractAddress, query }: ContractQuery) {
     throw error;
   }
 }
+
