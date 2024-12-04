@@ -15,6 +15,9 @@ import {
   X,
 } from "lucide-react";
 import { UploadRequestBody } from "@/backend/types";
+import { useCreateAuctionTx } from "@/hooks/use-create-auction-tx";
+import { ConnectionWrapper } from "@/wrappers/connection-wrapper";
+import { useConnection } from "@/hooks/use-connection";
 
 interface PricePreview {
   totalSeconds: number;
@@ -41,6 +44,7 @@ interface PropertyDescriptionSectionProps {
 
 const AuctionCreationForm: React.FC = () => {
   const [formData, setFormData] = useState<UploadRequestBody>({
+    name: "",
     startDate: "",
     endDate: "",
     startingPrice: "",
@@ -61,6 +65,12 @@ const AuctionCreationForm: React.FC = () => {
 
   const [previewPrice, setPreviewPrice] = useState<PricePreview | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const { status, handleConnect } = useConnection();
+  const connected = status === "Connected";
+
+  const createAuctionTx = useCreateAuctionTx({
+    uploadRequestBody: formData,
+  });
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -121,36 +131,55 @@ const AuctionCreationForm: React.FC = () => {
       return;
     }
 
-    // Convert dates to ISO format
-    const formDataWithISODates = {
+    // Format dates to ISO strings
+    const formattedData = {
       ...formData,
       startDate: new Date(formData.startDate).toISOString(),
       endDate: new Date(formData.endDate).toISOString(),
     };
 
-    console.log("formData", formDataWithISODates);
-    setErrors([]);
-    console.log("Form submitted:", formDataWithISODates);
-    console.log("Price calculations:", previewPrice);
-
-    // Create hash of the form data
-    const formDataBuffer = new TextEncoder().encode(JSON.stringify(formDataWithISODates));
-    const hashBuffer = await crypto.subtle.digest('SHA-256', formDataBuffer);
-    const auctionHashString = Array.from(new Uint8Array(hashBuffer))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-
     try {
+      // Create hash of the formatted form data
+      const formDataBuffer = new TextEncoder().encode(JSON.stringify(formattedData));
+      const hashBuffer = await crypto.subtle.digest("SHA-256", formDataBuffer);
+      const auctionHashString = Array.from(new Uint8Array(hashBuffer))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      if (!createAuctionTx) {
+        throw new Error("Transaction creation not available");
+      }
+
+      const offeredAsset = {
+        amount: formData.tokenCount,
+        denom: "uom",
+      };
+
+      // Execute the smart contract transaction with formatted data
+      const txResult = await createAuctionTx({
+        endPrice: formData.minimumPrice,
+        endTime: (new Date(formData.endDate).getTime() * 1000000).toString(),
+        inDenom: "uom",
+        offeredAsset,
+        startTime: (new Date(formData.startDate).getTime() * 1000000).toString(),
+        startingPrice: formData.startingPrice,
+        memoHash: auctionHashString,
+        funds: [offeredAsset],
+      });
+
+      // Send formatted data to backend
       const response = await fetch("/api/upload-rwa", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          auctionData: formDataWithISODates,
+          auctionData: formattedData,
           auctionHash: auctionHashString,
-          transactionHash: "0x0", // Add a placeholder transaction hash
-          id: "0",
+          transactionHash: txResult.transactionHash,
+          id: txResult.events
+            .find((e) => e.type === "wasm")
+            ?.attributes.find((a) => a.key === "auction_id")?.value || "0",
         }),
       });
 
@@ -161,8 +190,10 @@ const AuctionCreationForm: React.FC = () => {
 
       // Handle successful submission
     } catch (error) {
-      console.error("Error uploading auction data:", error);
-      setErrors([typeof error === 'string' ? error : "Failed to create auction. Please try again."]);
+      console.error("Error creating auction:", error);
+      setErrors([
+        typeof error === "string" ? error : "Failed to create auction. Please try again.",
+      ]);
     }
   };
 
@@ -284,10 +315,15 @@ const AuctionCreationForm: React.FC = () => {
       errors.push("Number of tokens must be greater than 0");
     }
 
+    if (!formData.name.trim()) {
+      errors.push("Property name is required");
+    }
+
     return errors;
   };
 
   return (
+    <ConnectionWrapper>
     <div className="min-h-screen bg-slate-900 text-white">
       <div className="max-w-4xl mx-auto p-6">
         <h1 className="text-3xl font-bold mb-8">Create Real Estate Auction</h1>
@@ -334,6 +370,24 @@ const AuctionCreationForm: React.FC = () => {
                 </div>
               </>
             )}
+          </div>
+
+          <div className="space-y-4">
+            <label className="block">
+              <FieldLabel
+                icon={Home}
+                label="Property Name"
+                explanation="Enter a descriptive name for your property that will be displayed to potential buyers."
+              />
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="Enter property name"
+                className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+              />
+            </label>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -516,15 +570,26 @@ const AuctionCreationForm: React.FC = () => {
             </div>
           )}
 
-          <button
-            type="submit"
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 font-medium transition-colors"
-          >
-            Create Auction
-          </button>
+          {connected ? (
+            <button
+              type="submit"
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 font-medium transition-colors"
+            >
+              Create Auction
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConnect}
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 font-medium transition-colors"
+            >
+              Connect Wallet to Create Auction
+            </button>
+          )}
         </form>
       </div>
     </div>
+    </ConnectionWrapper>
   );
 };
 

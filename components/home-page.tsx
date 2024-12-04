@@ -1,3 +1,4 @@
+"use client";
 import React from "react";
 import {
   Timer,
@@ -7,7 +8,10 @@ import {
   Users,
   Building,
   History,
+  Plus,
 } from "lucide-react";
+import Link from "next/link";
+import { UploadRequestBody } from "@/backend/types";
 
 type Price = {
   om: number;
@@ -55,73 +59,28 @@ type PastAuction = BaseAuction & {
 
 type Auction = LiveAuction | UpcomingAuction | PastAuction;
 
-const auctions: Auction[] = [
-  {
-    id: 1,
-    status: "live",
-    name: "Palm Jumeirah Signature Villa",
-    image: "/api/placeholder/800/400",
-    startDate: "2024-11-26 10:00:00",
-    endDate: "2024-11-29 10:00:00",
-    startingPrice: { om: 1000000, usd: 3600000 },
-    currentPrice: { om: 966000, usd: 3477600 },
-    maxDropPercentage: 20,
-    totalTokens: 1000,
-    availableTokens: 1000,
-    features: {
-      layout: ["6 Bedrooms", "5 Bathrooms"],
-      views: ["Sea View", "Palm View"],
-      outdoor: ["Private Beach", "Infinity Pool"],
-      wellness: ["Private Gym", "Sauna"],
-      interior: ["Smart Home", "Private Cinema"],
-    },
-    location: "Palm Jumeirah Frond N",
-  },
-  {
-    id: 2,
-    status: "upcoming",
-    name: "Downtown Penthouse Suite",
-    image: "/api/placeholder/800/400",
-    startDate: "2024-12-01 10:00:00",
-    endDate: "2024-12-04 10:00:00",
-    startingPrice: { om: 750000, usd: 2700000 },
-    maxDropPercentage: 15,
-    totalTokens: 800,
-    availableTokens: 800,
-    features: {
-      layout: ["4 Bedrooms", "3.5 Bathrooms"],
-      views: ["Burj Khalifa View", "Dubai Fountain View"],
-      outdoor: ["Private Terrace", "Rooftop Garden"],
-      wellness: ["Private Gym", "Spa"],
-      interior: ["Smart Home", "Study Room"],
-    },
-    location: "Downtown Dubai",
-  },
-  {
-    id: 3,
-    status: "past",
-    name: "Marina Luxury Loft",
-    image: "/api/placeholder/800/400",
-    startDate: "2024-11-20 10:00:00",
-    endDate: "2024-11-23 10:00:00",
-    startingPrice: { om: 500000, usd: 1800000 },
-    finalPrice: { om: 435000, usd: 1566000 },
-    maxDropPercentage: 15,
-    totalTokens: 500,
-    soldTokens: 500,
-    features: {
-      layout: ["3 Bedrooms", "2 Bathrooms"],
-      views: ["Marina View", "Sea View"],
-      outdoor: ["Balcony", "Community Pool"],
-      wellness: ["Private Gym", "Yoga Deck"],
-      interior: ["Designer Kitchen", "Smart Home"],
-    },
-    location: "Dubai Marina",
-    soldAt: "2024-11-22 15:30:00",
-  },
-];
+export type Auction2 = {
+  index: number;
+  info: UploadRequestBody;
+  creator: string;
+  end_price: string;
+  end_time: string;
+  in_denom: string;
+  offered_asset: {
+    amount: string;
+    denom: string;
+  };
+  remaining_amount: string;
+  start_time: string;
+  starting_price: string;
+};
 
-export default function HomePage() {
+export type Fuck = {
+  value: Auction2;
+  status: "fulfilled";
+};
+
+export default function HomePage({ auctions2 }: { auctions2: Auction2[] }) {
   const formatTimeLeft = (dateString: string) => {
     const now = new Date().getTime();
     const target = new Date(dateString).getTime();
@@ -132,6 +91,76 @@ export default function HomePage() {
     if (days > 0) return `${days}d ${hours}h`;
     return `${hours}h`;
   };
+
+  const convertAuction2ToAuction = (auction2: Auction2): Auction => {
+    const startTime = new Date(parseInt(auction2.start_time) * 1000);
+    const endTime = new Date(parseInt(auction2.end_time) * 1000);
+    const now = new Date();
+
+    const startingPriceNumber = parseFloat(auction2.starting_price);
+    const endPriceNumber = auction2.end_price
+      ? parseFloat(auction2.end_price)
+      : 0;
+
+    console.log("start timeq: ", startTime);
+    console.log("end timeq: ", endTime);
+
+    const baseAuction = {
+      id: auction2.index,
+      name: auction2.info.name || "Unnamed Property",
+      image: auction2.info.image || "/api/placeholder/800/400",
+      startDate: auction2.info.startDate,
+      endDate: auction2.info.endDate,
+      startingPrice: {
+        om: startingPriceNumber,
+        usd: startingPriceNumber * 3.6, // Assuming 1 OM = 3.6 USD
+      },
+      maxDropPercentage: 20, // Default value
+      totalTokens: parseInt(auction2.offered_asset.amount),
+      features: {
+        layout: [auction2.info.layout1, auction2.info.layout2],
+        views: [auction2.info.views1, auction2.info.views2],
+        outdoor: [auction2.info.outdoor1, auction2.info.outdoor2],
+        wellness: [auction2.info.wellness1, auction2.info.wellness2],
+        interior: [auction2.info.interior1, auction2.info.interior2],
+      },
+      location: "Location not specified",
+    };
+
+    if (now < startTime) {
+      return {
+        ...baseAuction,
+        status: "upcoming" as const,
+        availableTokens: parseInt(auction2.remaining_amount),
+      };
+    } else if (now > endTime) {
+      return {
+        ...baseAuction,
+        status: "past" as const,
+        finalPrice: {
+          om: endPriceNumber,
+          usd: endPriceNumber * 3.6,
+        },
+        soldTokens:
+          parseInt(auction2.offered_asset.amount) -
+          parseInt(auction2.remaining_amount),
+        soldAt: endTime.toISOString(),
+      };
+    } else {
+      const currentPrice = endPriceNumber || startingPriceNumber; // Use end price if available, otherwise starting price
+      return {
+        ...baseAuction,
+        status: "live" as const,
+        currentPrice: {
+          om: currentPrice,
+          usd: currentPrice * 3.6,
+        },
+        availableTokens: parseInt(auction2.remaining_amount),
+      };
+    }
+  };
+
+  const convertedAuctions = auctions2.map(convertAuction2ToAuction);
 
   const AuctionCard = ({ auction }: { auction: Auction }) => {
     const isLive = auction.status === "live";
@@ -184,6 +213,7 @@ export default function HomePage() {
                   : isPast
                   ? auction.finalPrice.om.toLocaleString()
                   : auction.startingPrice.om.toLocaleString()}{" "}
+                  
                 $OM
               </div>
               <div className="text-sm text-slate-400">
@@ -254,7 +284,8 @@ export default function HomePage() {
             ))}
           </div>
 
-          <button
+          <Link
+            href={`/auction/${auction.id}`}
             className={`w-full ${
               isPast
                 ? "bg-slate-600 hover:bg-slate-700"
@@ -263,7 +294,7 @@ export default function HomePage() {
           >
             {isLive ? "View Auction" : isPast ? "View Results" : "Set Reminder"}
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       </div>
     );
@@ -279,6 +310,15 @@ export default function HomePage() {
           <p className="text-lg text-slate-400">
             Discover exclusive properties with our unique Dutch auction system
           </p>
+          <div className="flex justify-center mb-8">
+            <Link
+              href="/create-auction"
+              className="bg-green-500 hover:bg-green-600 text-white rounded-lg px-6 py-3 flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Create New Auction
+            </Link>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
@@ -314,7 +354,7 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {auctions.map((auction) => (
+          {convertedAuctions.map((auction) => (
             <AuctionCard key={auction.id} auction={auction} />
           ))}
         </div>

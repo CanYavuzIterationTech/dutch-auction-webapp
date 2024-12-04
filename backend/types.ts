@@ -3,6 +3,7 @@ import { z } from "zod";
 // Define the type for the incoming request body
 export const uploadRequestBodySchema = z.object({
   // Auction timing and pricing
+  name: z.string(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
   startingPrice: z

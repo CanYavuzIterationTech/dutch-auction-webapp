@@ -27,9 +27,7 @@ export function ConnectionWrapper({ children }: { children: React.ReactNode }) {
   const { data: queryClient } = useDutchAuctionQueryClient();
   const { data: signingClient } = useDutchAuctionSigningClient();
 
-  if (!queryClient || !signingClient) {
-    return null;
-  }
+
 
   return (
     <ConnectionContext.Provider value={{ queryClient, signingClient }}>

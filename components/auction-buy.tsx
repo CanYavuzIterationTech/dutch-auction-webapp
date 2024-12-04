@@ -1,159 +1,111 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { ArrowDownRight } from "lucide-react";
-import { UploadRequestBody } from "@/backend/types";
 import { useChain } from "@cosmos-kit/react";
 import { CHAIN_NAME } from "@/config/constants";
+import { Auction2 } from "./home-page";
+import { useDutchAuctionLaunchpadBidMutation } from "@/contract/dutch-auction.react-query";
+import { useAuctionClients } from "@/wrappers/connection-wrapper";
+import { toast } from "sonner";
 
 export function AuctionBuy({
   data,
   id,
 }: {
-  data: UploadRequestBody;
+  data: Auction2;
   id: string;
 }) {
   const {
     connect,
-    // disconnect,
-    // address,
-    // wallet,
     status,
-    // getSigningCosmWasmClient,
   } = useChain(CHAIN_NAME);
   const connected = status === "Connected";
 
   const [currentPrice, setCurrentPrice] = useState({
-    om: Number(data.startingPrice),
-    usd: Number(data.startingPrice) * 3.6, // TODO: Get actual exchange rate
+    om: parseFloat(data.starting_price),
+    usd: parseFloat(data.starting_price) * 3.6,
   });
   const [tokenAmount, setTokenAmount] = useState("");
-  const [secondsElapsed, setSecondsElapsed] = useState(0);
 
-  const auctionDetails = {
-    propertyName: "Property #" + id, // TODO: Add property name to UploadRequestBody
-    startDate: data.startDate,
-    endDate: data.endDate,
+  const { signingClient } = useAuctionClients();
+  const { mutateAsync: sendBidTx } = useDutchAuctionLaunchpadBidMutation();
+
+  const auctionDetails = useMemo(() => ({
+    propertyName: data.info.name || "Property #" + id,
+    startTime: parseInt(data.start_time) / 1000000,
+    endTime: parseInt(data.end_time) / 1000000,
     startingPrice: {
-      om: Number(data.startingPrice),
-      usd: Number(data.startingPrice) * 3.6, // TODO: Get actual exchange rate
+      om: parseFloat(data.starting_price),
+      usd: parseFloat(data.starting_price) * 3.6,
     },
-    maxDropPercentage:
-      ((Number(data.startingPrice) - Number(data.minimumPrice)) /
-        Number(data.startingPrice)) *
-      100,
-    totalTokens: Number(data.tokenCount),
-    availableTokens: Number(data.tokenCount),
-    omToUsdRate: 3.6, // TODO: Get actual exchange rate
-    durationInDays: Math.ceil(
-      (new Date(data.endDate).getTime() - new Date(data.startDate).getTime()) /
-        (1000 * 60 * 60 * 24)
-    ),
-  };
-
-  // Calculate auction parameters
-  const totalDurationSeconds = Math.floor(
-    (new Date(data.endDate).getTime() - new Date(data.startDate).getTime()) /
-      1000
-  );
-  const totalPriceDrop =
-    auctionDetails.startingPrice.om * (auctionDetails.maxDropPercentage / 100);
-  const priceDropPerSecond = totalPriceDrop / totalDurationSeconds;
+    endPrice: {
+      om: parseFloat(data.end_price || data.starting_price),
+      usd: parseFloat(data.end_price || data.starting_price) * 3.6,
+    },
+    totalTokens: parseInt(data.offered_asset.amount),
+    availableTokens: parseInt(data.remaining_amount),
+    omToUsdRate: 3.6,
+    durationInDays: Math.ceil((parseInt(data.end_time) / 1000000000 - parseInt(data.start_time) / 1000000000) / (24 * 60 * 60)),
+    maxDropPercentage: ((parseFloat(data.starting_price) - parseFloat(data.end_price || data.starting_price)) / parseFloat(data.starting_price)) * 100
+  }), [data, id]);
 
   const getAuctionStatus = () => {
-    const now = new Date().getTime();
-    const startTime = new Date(data.startDate).getTime();
-    const endTime = new Date(data.endDate).getTime();
-
-    if (now < startTime) {
+    const now = Date.now();
+    if (now < auctionDetails.startTime) {
       return "upcoming";
-    } else if (now > endTime) {
+    } else if (now > auctionDetails.endTime) {
       return "ended";
     }
     return "live";
   };
+
   useEffect(() => {
-    const status = getAuctionStatus();
+    const updatePrice = () => {
+      const now = Date.now();
+      const status = getAuctionStatus();
 
-    if (status === "live") {
-      const timer = setInterval(() => {
-        setSecondsElapsed((prev) => {
-          const newSeconds = prev + 1;
-          const priceDrop = priceDropPerSecond * newSeconds;
-          const newOmPrice = Math.max(
-            auctionDetails.startingPrice.om *
-              (1 - auctionDetails.maxDropPercentage / 100),
-            auctionDetails.startingPrice.om - priceDrop
-          );
-          const newUsdPrice = newOmPrice * auctionDetails.omToUsdRate;
-
-          setCurrentPrice({
-            om: Number(newOmPrice.toFixed(2)),
-            usd: Number(newUsdPrice.toFixed(2)),
-          });
-
-          return newSeconds;
+      if (status === "live") {
+        const progress = (now - auctionDetails.startTime) / (auctionDetails.endTime - auctionDetails.startTime);
+        const currentOmPrice = auctionDetails.startingPrice.om - (progress * (auctionDetails.startingPrice.om - auctionDetails.endPrice.om));
+        
+        setCurrentPrice({
+          om: Number(currentOmPrice.toFixed(6)),
+          usd: Number((currentOmPrice * auctionDetails.omToUsdRate).toFixed(2))
         });
-      }, 1000);
+      } else if (status === "upcoming") {
+        setCurrentPrice(auctionDetails.startingPrice);
+      } else {
+        setCurrentPrice(auctionDetails.endPrice);
+      }
+    };
 
-      return () => clearInterval(timer);
-    } else if (status === "upcoming") {
-      const timer = setInterval(() => {
-        setSecondsElapsed((prev) => prev + 1);
-      }, 1000);
+    const timer = setInterval(updatePrice, 1000);
+    updatePrice(); // Initial update
 
-      setCurrentPrice({
-        om: auctionDetails.startingPrice.om,
-        usd: auctionDetails.startingPrice.usd,
-      });
-
-      return () => clearInterval(timer);
-    }
-  }, [
-    auctionDetails.startingPrice.om,
-    auctionDetails.startingPrice.usd,
-    auctionDetails.maxDropPercentage,
-    auctionDetails.omToUsdRate,
-    priceDropPerSecond,
-    totalDurationSeconds,
-    getAuctionStatus,
-  ]);
+    return () => clearInterval(timer);
+  }, [auctionDetails]);
 
   const formatTimeRemaining = () => {
-    const now = new Date().getTime();
+    const now = Date.now();
     const status = getAuctionStatus();
 
     if (status === "upcoming") {
-      const startTime = new Date(data.startDate).getTime();
-      const remainingSeconds = Math.floor((startTime - now) / 1000);
-      const days = Math.floor(remainingSeconds / (24 * 60 * 60));
-      const hours = Math.floor((remainingSeconds % (24 * 60 * 60)) / (60 * 60));
-      const minutes = Math.floor((remainingSeconds % (60 * 60)) / 60);
-      const seconds = Math.floor(remainingSeconds % 60);
-      return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+      const remainingMs = auctionDetails.startTime - now;
+      return formatDuration(remainingMs);
     } else if (status === "live") {
-      const remainingSeconds = totalDurationSeconds - secondsElapsed;
-      const days = Math.floor(remainingSeconds / (24 * 60 * 60));
-      const hours = Math.floor((remainingSeconds % (24 * 60 * 60)) / (60 * 60));
-      const minutes = Math.floor((remainingSeconds % (60 * 60)) / 60);
-      const seconds = Math.floor(remainingSeconds % 60);
-      return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+      const remainingMs = auctionDetails.endTime - now;
+      return formatDuration(remainingMs);
     }
     return "Auction Ended";
   };
 
-  const calculatePriceAtDay = (dayNumber: number) => {
-    const secondsInDay = dayNumber * 24 * 60 * 60;
-    const priceDrop = priceDropPerSecond * secondsInDay;
-    const omPrice = Math.max(
-      auctionDetails.startingPrice.om *
-        (1 - auctionDetails.maxDropPercentage / 100),
-      auctionDetails.startingPrice.om - priceDrop
-    );
-
-    return {
-      om: Number(omPrice.toFixed(2)),
-      usd: Number((omPrice * auctionDetails.omToUsdRate).toFixed(2)),
-    };
+  const formatDuration = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const days = Math.floor(seconds / (24 * 60 * 60));
+    const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${days}d ${hours}h ${minutes}m ${secs}s`;
   };
 
   const calculateTotal = () => {
@@ -162,6 +114,61 @@ export function AuctionBuy({
       om: Number(tokenAmount) * currentPrice.om,
       usd: Number(tokenAmount) * currentPrice.usd,
     };
+  };
+
+  const calculatePriceAtDay = (dayNumber: number) => {
+    const secondsInDay = 24 * 60 * 60;
+    const totalDuration = (auctionDetails.endTime - auctionDetails.startTime) / 1000;
+    const progress = (dayNumber * secondsInDay) / totalDuration;
+    
+    const currentOmPrice = auctionDetails.startingPrice.om - 
+      (progress * (auctionDetails.startingPrice.om - auctionDetails.endPrice.om));
+    
+    return {
+      om: Number(currentOmPrice.toFixed(6)),
+      usd: Number((currentOmPrice * auctionDetails.omToUsdRate).toFixed(2))
+    };
+  };
+
+  const handleBuy = async () => {
+    if (!signingClient || !connected || !tokenAmount) return;
+
+    try {
+      const total = calculateTotal();
+      
+      const amountInUom = Math.floor(total.om).toString();
+      
+      console.log("auction id", id);
+      await sendBidTx({
+        client: signingClient,
+        msg: {
+          auctionId: parseInt(id),
+        },
+        args: {
+          funds: [
+            {
+              denom: "uom",
+              amount: amountInUom,
+            },
+          ],
+          fee: {
+            amount: [
+              {
+                denom: "uom",
+                amount: "2500",
+              },
+            ],
+            gas: "500000",
+          },
+        },
+      });
+
+      toast.success("Successfully purchased tokens!");
+      setTokenAmount("");
+    } catch (error) {
+      console.error("Error buying tokens:", error);
+      toast.error("Failed to purchase tokens: " + (error as Error).message);
+    }
   };
 
   return (
@@ -173,7 +180,7 @@ export function AuctionBuy({
             <div className="bg-slate-800 rounded-lg overflow-hidden">
               <div className="h-64 relative">
                 <img
-                  src={data.image}
+                  src={data.info.image}
                   alt="Property"
                   className="w-full h-full object-cover"
                 />
@@ -194,13 +201,13 @@ export function AuctionBuy({
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">Start Date</span>
                         <span>
-                          {new Date(auctionDetails.startDate).toLocaleString()}
+                          {new Date(auctionDetails.startTime).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">End Date</span>
                         <span>
-                          {new Date(auctionDetails.endDate).toLocaleString()}
+                          {new Date(auctionDetails.endTime).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
@@ -255,10 +262,10 @@ export function AuctionBuy({
                       </h4>
                       <div className="space-y-1">
                         <div className="text-sm text-slate-400">
-                          {data.layout1}
+                          {data.info.layout1}
                         </div>
                         <div className="text-sm text-slate-400">
-                          {data.layout2}
+                          {data.info.layout2}
                         </div>
                       </div>
                     </div>
@@ -268,10 +275,10 @@ export function AuctionBuy({
                       </h4>
                       <div className="space-y-1">
                         <div className="text-sm text-slate-400">
-                          {data.views1}
+                          {data.info.views1}
                         </div>
                         <div className="text-sm text-slate-400">
-                          {data.views2}
+                          {data.info.views2}
                         </div>
                       </div>
                     </div>
@@ -419,6 +426,7 @@ export function AuctionBuy({
                         <button
                           className="w-full bg-green-500 hover:bg-green-600 rounded-lg p-4 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={!tokenAmount || Number(tokenAmount) <= 0}
+                          onClick={handleBuy}
                         >
                           Buy Now
                         </button>

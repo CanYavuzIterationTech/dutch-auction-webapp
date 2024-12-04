@@ -4,6 +4,7 @@ import "./globals.css";
 import { CosmosProvider } from "../providers/chain-provider";
 import "@interchain-ui/react/styles";
 import { QueryProvider } from "@/providers/query-provider";
+import { ConnectionWrapper } from "@/wrappers/connection-wrapper";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -32,7 +33,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <CosmosProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            <ConnectionWrapper>{children}</ConnectionWrapper>
+          </QueryProvider>
         </CosmosProvider>
       </body>
     </html>
