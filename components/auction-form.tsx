@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import {
   Camera,
@@ -18,6 +19,7 @@ import { UploadRequestBody } from "@/backend/types";
 import { useCreateAuctionTx } from "@/hooks/use-create-auction-tx";
 import { ConnectionWrapper } from "@/wrappers/connection-wrapper";
 import { useConnection } from "@/hooks/use-connection";
+import { useRouter } from "next/navigation";
 
 interface PricePreview {
   totalSeconds: number;
@@ -62,6 +64,8 @@ const AuctionCreationForm: React.FC = () => {
     interior2: "",
     image: "",
   });
+
+  const router = useRouter();
 
   const [previewPrice, setPreviewPrice] = useState<PricePreview | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -140,7 +144,9 @@ const AuctionCreationForm: React.FC = () => {
 
     try {
       // Create hash of the formatted form data
-      const formDataBuffer = new TextEncoder().encode(JSON.stringify(formattedData));
+      const formDataBuffer = new TextEncoder().encode(
+        JSON.stringify(formattedData)
+      );
       const hashBuffer = await crypto.subtle.digest("SHA-256", formDataBuffer);
       const auctionHashString = Array.from(new Uint8Array(hashBuffer))
         .map((b) => b.toString(16).padStart(2, "0"))
@@ -155,18 +161,22 @@ const AuctionCreationForm: React.FC = () => {
         denom: "uom",
       };
 
-
       console.log("offeredAsset", offeredAsset);
-      
 
       // Execute the smart contract transaction with formatted data
       const txResult = await createAuctionTx({
-        endPrice: (Math.floor(Number(formData.minimumPrice) * 1000000)).toString(),
+        endPrice: Math.floor(
+          Number(formData.minimumPrice) * 1000000
+        ).toString(),
         endTime: (new Date(formData.endDate).getTime() * 1000000).toString(),
         inDenom: "uom",
         offeredAsset,
-        startTime: (new Date(formData.startDate).getTime() * 1000000).toString(),
-        startingPrice: (Math.floor(Number(formData.startingPrice) * 1000000)).toString(),
+        startTime: (
+          new Date(formData.startDate).getTime() * 1000000
+        ).toString(),
+        startingPrice: Math.floor(
+          Number(formData.startingPrice) * 1000000
+        ).toString(),
         memoHash: auctionHashString,
         funds: [offeredAsset],
       });
@@ -181,9 +191,10 @@ const AuctionCreationForm: React.FC = () => {
           auctionData: formattedData,
           auctionHash: auctionHashString,
           transactionHash: txResult.transactionHash,
-          id: txResult.events
-            .find((e) => e.type === "wasm")
-            ?.attributes.find((a) => a.key === "auction_id")?.value || "0",
+          id:
+            txResult.events
+              .find((e) => e.type === "wasm")
+              ?.attributes.find((a) => a.key === "auction_id")?.value || "0",
         }),
       });
 
@@ -192,11 +203,22 @@ const AuctionCreationForm: React.FC = () => {
         throw new Error(errorData.error || "Failed to upload auction data");
       }
 
+      // Redirect to the auction details page
+      router.push(
+        `/auction/${
+          txResult.events
+            .find((e) => e.type === "wasm")
+            ?.attributes.find((a) => a.key === "auction_id")?.value || "0"
+        }`
+      );
+
       // Handle successful submission
     } catch (error) {
       console.error("Error creating auction:", error);
       setErrors([
-        typeof error === "string" ? error : "Failed to create auction. Please try again.",
+        typeof error === "string"
+          ? error
+          : "Failed to create auction. Please try again.",
       ]);
     }
   };
@@ -328,271 +350,277 @@ const AuctionCreationForm: React.FC = () => {
 
   return (
     <ConnectionWrapper>
-    <div className="min-h-screen bg-slate-900 text-white">
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-8">Create Real Estate Auction</h1>
+      <div className="min-h-screen bg-slate-900 text-white">
+        <div className="max-w-4xl mx-auto p-6">
+          <h1 className="text-3xl font-bold mb-8">
+            Create Real Estate Auction
+          </h1>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="bg-slate-800 rounded-lg p-8 flex flex-col items-center justify-center border-2 border-dashed border-slate-600">
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleImageUpload}
-              className="hidden"
-              id="image-upload"
-            />
-            {formData.image ? (
-              <div className="relative w-full max-w-md">
-                <img
-                  src={formData.image}
-                  alt="Property preview"
-                  className="w-full h-48 object-cover rounded-lg"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, image: "" }))
-                  }
-                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <>
-                <Camera className="w-12 h-12 text-slate-400 mb-4" />
-                <div className="text-center">
-                  <label
-                    htmlFor="image-upload"
-                    className="text-blue-400 hover:text-blue-300 font-medium cursor-pointer"
-                  >
-                    Upload Property Photo
-                  </label>
-                  <p className="text-sm text-slate-400 mt-2">
-                    PNG, JPG, WebP up to 10MB
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <label className="block">
-              <FieldLabel
-                icon={Home}
-                label="Property Name"
-                explanation="Enter a descriptive name for your property that will be displayed to potential buyers."
-              />
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="bg-slate-800 rounded-lg p-8 flex flex-col items-center justify-center border-2 border-dashed border-slate-600">
               <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="Enter property name"
-                className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="image-upload"
               />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <label className="block">
-                <FieldLabel
-                  icon={Calendar}
-                  label="Start Date"
-                  explanation="The date and time when your Dutch auction will begin - the price starts at its highest point at this moment."
-                />
-                <input
-                  type="datetime-local"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
-                />
-              </label>
-            </div>
-
-            <div className="space-y-4">
-              <label className="block">
-                <FieldLabel
-                  icon={Calendar}
-                  label="End Date"
-                  explanation="The date and time when your auction will finish - the price will reach its lowest point at this moment."
-                />
-                <input
-                  type="datetime-local"
-                  name="endDate"
-                  value={formData.endDate}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
-                />
-              </label>
-            </div>
-
-            <div className="space-y-4">
-              <label className="block">
-                <FieldLabel
-                  icon={DollarSign}
-                  label="Starting Price"
-                  explanation="The initial selling price of your property when the auction begins - this will gradually decrease until reaching your minimum price."
-                />
-                <input
-                  type="number"
-                  name="startingPrice"
-                  value={formData.startingPrice}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
-                  min="0"
-                  step="0.01"
-                />
-              </label>
-            </div>
-
-            <div className="space-y-4">
-              <label className="block">
-                <FieldLabel
-                  icon={DollarSign}
-                  label="Minimum Price"
-                  explanation="The lowest price you're willing to accept for your property - the auction will end if this price is reached."
-                />
-                <input
-                  type="number"
-                  name="minimumPrice"
-                  value={formData.minimumPrice}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
-                  min="0"
-                  step="0.01"
-                />
-              </label>
-            </div>
-
-            <div className="space-y-4 md:col-span-2">
-              <label className="block">
-                <FieldLabel
-                  icon={Coins}
-                  label="Number of Tokens"
-                  explanation="The total number of shares your property will be divided into - each token represents partial ownership of the property."
-                />
-                <input
-                  type="number"
-                  name="tokenCount"
-                  value={formData.tokenCount}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
-                  min="1"
-                />
-              </label>
-            </div>
-
-            <PropertyDescriptionSection
-              icon={Layout}
-              title="Layout"
-              name1="layout1"
-              name2="layout2"
-              placeholder1="Enter layout description 1"
-              placeholder2="Enter layout description 2"
-            />
-
-            <PropertyDescriptionSection
-              icon={Eye}
-              title="Views"
-              name1="views1"
-              name2="views2"
-              placeholder1="Enter views description 1"
-              placeholder2="Enter views description 2"
-            />
-
-            <PropertyDescriptionSection
-              icon={Sun}
-              title="Outdoor"
-              name1="outdoor1"
-              name2="outdoor2"
-              placeholder1="Enter outdoor description 1"
-              placeholder2="Enter outdoor description 2"
-            />
-
-            <PropertyDescriptionSection
-              icon={Heart}
-              title="Wellness"
-              name1="wellness1"
-              name2="wellness2"
-              placeholder1="Enter wellness description 1"
-              placeholder2="Enter wellness description 2"
-            />
-
-            <PropertyDescriptionSection
-              icon={Home}
-              title="Interior"
-              name1="interior1"
-              name2="interior2"
-              placeholder1="Enter interior description 1"
-              placeholder2="Enter interior description 2"
-            />
-          </div>
-
-          {previewPrice && (
-            <div className="bg-slate-800 rounded-lg p-6 space-y-4">
-              <h3 className="text-xl font-semibold mb-4">Price Drop Preview</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-slate-700 rounded-lg p-4">
-                  <div className="text-sm text-slate-400">Duration</div>
-                  <div className="font-mono">
-                    {Math.floor(previewPrice.totalSeconds / 3600)}h{" "}
-                    {Math.floor((previewPrice.totalSeconds % 3600) / 60)}m
-                  </div>
+              {formData.image ? (
+                <div className="relative w-full max-w-md">
+                  <img
+                    src={formData.image}
+                    alt="Property preview"
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({ ...prev, image: "" }))
+                    }
+                    className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="bg-slate-700 rounded-lg p-4">
-                  <div className="text-sm text-slate-400">Drop Per Second</div>
-                  <div className="font-mono">
-                    ${previewPrice.dropPerSecond.toFixed(6)}
+              ) : (
+                <>
+                  <Camera className="w-12 h-12 text-slate-400 mb-4" />
+                  <div className="text-center">
+                    <label
+                      htmlFor="image-upload"
+                      className="text-blue-400 hover:text-blue-300 font-medium cursor-pointer"
+                    >
+                      Upload Property Photo
+                    </label>
+                    <p className="text-sm text-slate-400 mt-2">
+                      PNG, JPG, WebP up to 10MB
+                    </p>
                   </div>
-                </div>
-                <div className="bg-slate-700 rounded-lg p-4">
-                  <div className="text-sm text-slate-400">Total Drop</div>
-                  <div className="font-mono">
-                    {previewPrice.totalDropPercentage.toFixed(2)}%
+                </>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <label className="block">
+                <FieldLabel
+                  icon={Home}
+                  label="Property Name"
+                  explanation="Enter a descriptive name for your property that will be displayed to potential buyers."
+                />
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  placeholder="Enter property name"
+                  className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <label className="block">
+                  <FieldLabel
+                    icon={Calendar}
+                    label="Start Date"
+                    explanation="The date and time when your Dutch auction will begin - the price starts at its highest point at this moment."
+                  />
+                  <input
+                    type="datetime-local"
+                    name="startDate"
+                    value={formData.startDate}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block">
+                  <FieldLabel
+                    icon={Calendar}
+                    label="End Date"
+                    explanation="The date and time when your auction will finish - the price will reach its lowest point at this moment."
+                  />
+                  <input
+                    type="datetime-local"
+                    name="endDate"
+                    value={formData.endDate}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block">
+                  <FieldLabel
+                    icon={DollarSign}
+                    label="Starting Price"
+                    explanation="The initial selling price of your property when the auction begins - this will gradually decrease until reaching your minimum price."
+                  />
+                  <input
+                    type="number"
+                    name="startingPrice"
+                    value={formData.startingPrice}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+                    min="0"
+                    step="0.01"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block">
+                  <FieldLabel
+                    icon={DollarSign}
+                    label="Minimum Price"
+                    explanation="The lowest price you're willing to accept for your property - the auction will end if this price is reached."
+                  />
+                  <input
+                    type="number"
+                    name="minimumPrice"
+                    value={formData.minimumPrice}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+                    min="0"
+                    step="0.01"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-4 md:col-span-2">
+                <label className="block">
+                  <FieldLabel
+                    icon={Coins}
+                    label="Number of Tokens"
+                    explanation="The total number of shares your property will be divided into - each token represents partial ownership of the property."
+                  />
+                  <input
+                    type="number"
+                    name="tokenCount"
+                    value={formData.tokenCount}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-800 rounded-lg p-3 border border-slate-600"
+                    min="1"
+                  />
+                </label>
+              </div>
+
+              <PropertyDescriptionSection
+                icon={Layout}
+                title="Layout"
+                name1="layout1"
+                name2="layout2"
+                placeholder1="Enter layout description 1"
+                placeholder2="Enter layout description 2"
+              />
+
+              <PropertyDescriptionSection
+                icon={Eye}
+                title="Views"
+                name1="views1"
+                name2="views2"
+                placeholder1="Enter views description 1"
+                placeholder2="Enter views description 2"
+              />
+
+              <PropertyDescriptionSection
+                icon={Sun}
+                title="Outdoor"
+                name1="outdoor1"
+                name2="outdoor2"
+                placeholder1="Enter outdoor description 1"
+                placeholder2="Enter outdoor description 2"
+              />
+
+              <PropertyDescriptionSection
+                icon={Heart}
+                title="Wellness"
+                name1="wellness1"
+                name2="wellness2"
+                placeholder1="Enter wellness description 1"
+                placeholder2="Enter wellness description 2"
+              />
+
+              <PropertyDescriptionSection
+                icon={Home}
+                title="Interior"
+                name1="interior1"
+                name2="interior2"
+                placeholder1="Enter interior description 1"
+                placeholder2="Enter interior description 2"
+              />
+            </div>
+
+            {previewPrice && (
+              <div className="bg-slate-800 rounded-lg p-6 space-y-4">
+                <h3 className="text-xl font-semibold mb-4">
+                  Price Drop Preview
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-700 rounded-lg p-4">
+                    <div className="text-sm text-slate-400">Duration</div>
+                    <div className="font-mono">
+                      {Math.floor(previewPrice.totalSeconds / 3600)}h{" "}
+                      {Math.floor((previewPrice.totalSeconds % 3600) / 60)}m
+                    </div>
                   </div>
-                </div>
-                <div className="bg-slate-700 rounded-lg p-4">
-                  <div className="text-sm text-slate-400">Final Price</div>
-                  <div className="font-mono">
-                    ${previewPrice.finalPrice.toFixed(2)}
+                  <div className="bg-slate-700 rounded-lg p-4">
+                    <div className="text-sm text-slate-400">
+                      Drop Per Second
+                    </div>
+                    <div className="font-mono">
+                      ${previewPrice.dropPerSecond.toFixed(6)}
+                    </div>
+                  </div>
+                  <div className="bg-slate-700 rounded-lg p-4">
+                    <div className="text-sm text-slate-400">Total Drop</div>
+                    <div className="font-mono">
+                      {previewPrice.totalDropPercentage.toFixed(2)}%
+                    </div>
+                  </div>
+                  <div className="bg-slate-700 rounded-lg p-4">
+                    <div className="text-sm text-slate-400">Final Price</div>
+                    <div className="font-mono">
+                      ${previewPrice.finalPrice.toFixed(2)}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {errors.length > 0 && (
-            <div className="bg-red-500/10 border border-red-500 rounded-lg p-4 mb-6">
-              <ul className="list-disc list-inside text-red-500">
-                {errors.map((error, index) => (
-                  <li key={index}>{error}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {errors.length > 0 && (
+              <div className="bg-red-500/10 border border-red-500 rounded-lg p-4 mb-6">
+                <ul className="list-disc list-inside text-red-500">
+                  {errors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          {connected ? (
-            <button
-              type="submit"
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 font-medium transition-colors"
-            >
-              Create Auction
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleConnect}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 font-medium transition-colors"
-            >
-              Connect Wallet to Create Auction
-            </button>
-          )}
-        </form>
+            {connected ? (
+              <button
+                type="submit"
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 font-medium transition-colors"
+              >
+                Create Auction
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConnect}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 font-medium transition-colors"
+              >
+                Connect Wallet to Create Auction
+              </button>
+            )}
+          </form>
+        </div>
       </div>
-    </div>
     </ConnectionWrapper>
   );
 };
