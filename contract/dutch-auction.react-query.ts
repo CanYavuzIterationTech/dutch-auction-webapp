@@ -82,7 +82,7 @@ export interface DutchAuctionLaunchpadReactQuery<TResponse, TData = TResponse> {
     UseQueryOptions<TResponse, Error, TData>,
     "'queryKey' | 'queryFn' | 'initialData'"
   > & {
-    initialData?: undefined;
+    initialData?: TData | undefined;
   };
 }
 export type DutchAuctionLaunchpadParamsQuery<TData> = DutchAuctionLaunchpadReactQuery<Params, TData>

@@ -25,7 +25,6 @@ export const useCreateAuctionTx = ({}: //uploadRequestBody,
     startingPrice,
     startTime,
     memoHash,
-    funds,
   }: {
     inDenom: string;
     offeredAsset: Coin;
@@ -63,7 +62,7 @@ export const useCreateAuctionTx = ({}: //uploadRequestBody,
           gas: "500000",
         },
         memo: memoString,
-        funds, //
+        funds: [offeredAsset], //
       },
     });
   };

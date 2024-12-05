@@ -155,14 +155,18 @@ const AuctionCreationForm: React.FC = () => {
         denom: "uom",
       };
 
+
+      console.log("offeredAsset", offeredAsset);
+      
+
       // Execute the smart contract transaction with formatted data
       const txResult = await createAuctionTx({
-        endPrice: formData.minimumPrice,
+        endPrice: (Math.floor(Number(formData.minimumPrice) * 1000000)).toString(),
         endTime: (new Date(formData.endDate).getTime() * 1000000).toString(),
         inDenom: "uom",
         offeredAsset,
         startTime: (new Date(formData.startDate).getTime() * 1000000).toString(),
-        startingPrice: formData.startingPrice,
+        startingPrice: (Math.floor(Number(formData.startingPrice) * 1000000)).toString(),
         memoHash: auctionHashString,
         funds: [offeredAsset],
       });
