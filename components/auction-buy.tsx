@@ -21,7 +21,7 @@ const getAuctionStatus = (now: number, startTime: number, endTime: number) => {
   return "live";
 };
 
-export function AuctionBuy({ data, id }: { data: Auction2; id: string }) {
+export function AuctionBuy({ data, id, omUsdtPrice }: { data: Auction2; id: string, omUsdtPrice: number  }) {
   const { connect, status } = useChain(CHAIN_NAME);
   const connected = status === "Connected";
 
@@ -65,15 +65,15 @@ export function AuctionBuy({ data, id }: { data: Auction2; id: string }) {
       endTime: parseInt(data.end_time) / 1000000,
       startingPrice: {
         om: parseFloat(data.starting_price),
-        usd: parseFloat(data.starting_price) * 3.6,
+        usd: parseFloat(data.starting_price) * omUsdtPrice,
       },
       endPrice: {
         om: parseFloat(data.end_price || data.starting_price),
-        usd: parseFloat(data.end_price || data.starting_price) * 3.6,
+        usd: parseFloat(data.end_price || data.starting_price) * omUsdtPrice,
       },
       totalTokens: parseInt(data.offered_asset.amount),
       availableTokens: parseInt(auctionData?.remaining_amount ?? "0"),
-      omToUsdRate: 3.6,
+      omToUsdRate: omUsdtPrice,
       durationInDays: Math.ceil(
         (parseInt(data.end_time) / 1000000000 -
           parseInt(data.start_time) / 1000000000) /
@@ -85,7 +85,7 @@ export function AuctionBuy({ data, id }: { data: Auction2; id: string }) {
           parseFloat(data.starting_price)) *
         100,
     }),
-    [data, id, auctionData]
+    [data, id, auctionData, omUsdtPrice]
   );
 
   useEffect(() => {
@@ -494,7 +494,7 @@ export function AuctionBuy({ data, id }: { data: Auction2; id: string }) {
                               USD Equivalent
                             </span>
                             <span>
-                              ${calculateTotal().usd * 3.95}
+                              ${calculateTotal().usd * omUsdtPrice}
                             </span>
                           </div>
                         </div>

@@ -7,6 +7,25 @@ import { notFound } from "next/navigation";
 
 const jsonS3Client = new JsonS3Client();
 
+async function fetchOMUSDTPrice() {
+  const symbol = 'OMUSDT';
+  const apiUrl = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
+
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    const data = await response.json();
+    const price = parseFloat(data.price).toFixed(4); // Format price to 4 decimal places
+    return price;
+  } catch (error) {
+    console.error('Error fetching the OM/USDT price:', error);
+  }
+}
+
+
+
 export default async function AuctionPage({
   params,
 }: {
@@ -34,6 +53,8 @@ export default async function AuctionPage({
       notFound();
     }
 
+    const omUsdtPrice = await fetchOMUSDTPrice();
+
     // Combine contract data with metadata
     const combinedData = {
       index: Number(params.id),
@@ -48,7 +69,7 @@ export default async function AuctionPage({
       starting_price: auctionData.starting_price,
     };
 
-    return <AuctionBuy data={combinedData} id={params.id} />;
+    return <AuctionBuy data={combinedData} id={params.id} omUsdtPrice={Number(omUsdtPrice)} />;
   } catch (error) {
     console.error("Error fetching auction data:", error);
     notFound();
