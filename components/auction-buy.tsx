@@ -494,7 +494,7 @@ export function AuctionBuy({ data, id }: { data: Auction2; id: string }) {
                               USD Equivalent
                             </span>
                             <span>
-                              ${calculateTotal().usd.toLocaleString()}
+                              ${calculateTotal().usd * 3.95}
                             </span>
                           </div>
                         </div>
