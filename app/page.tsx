@@ -5,6 +5,7 @@ import HomePage from "@/components/home-page";
 import { DUTCH_AUCTION_CONTRACT_ADDRESS } from "@/config/constants";
 import { DutchAuctionLaunchpadQueryClient } from "@/contract/dutch-auction.client";
 import { Coin } from "@cosmjs/amino";
+import { unstable_noStore } from "next/cache";
 
 export type Auction = {
   index: number;
@@ -25,6 +26,7 @@ export type Auction = {
 const jsonS3Client = new JsonS3Client();
 
 export default async function Home() {
+  unstable_noStore();
   const cosmwasmClient = await getBackendCosmWasmClient();
 
   if (!cosmwasmClient) {
@@ -40,6 +42,8 @@ export default async function Home() {
     startAfter: 0,
     limit: 100,
   });
+
+  console.log("AUCTIONS", auctions);
 
   const jsonAuctions = Promise.allSettled(
     auctions.map(async (auction) => {

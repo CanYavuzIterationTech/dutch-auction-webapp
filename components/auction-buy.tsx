@@ -83,7 +83,7 @@ export function AuctionBuy({
     updatePrice(); // Initial update
 
     return () => clearInterval(timer);
-  }, [auctionDetails]);
+  }, [auctionDetails, getAuctionStatus]);
 
   const formatTimeRemaining = () => {
     const now = Date.now();
